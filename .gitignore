@@ -1,0 +1,22 @@
+# Виртуальное окружение (150 МБ, не нужно на GitHub)
+venv/
+
+# Отчёты и логи (приватные данные + растущий размер)
+reports/
+logs/
+
+# Временные файлы Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Конфиги с личными данными (если появятся)
+secrets.json
+.env
+
+# Системные файлы Windows
+Thumbs.db
+.DS_Store
+
+# Временные файлы Streamlit
+.streamlit/secrets.toml
