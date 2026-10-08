@@ -1,4 +1,4 @@
-# receipts_ui.py v3 - Чеки и Финансы (дубли невозможны + удаление + русский CSV)
+# receipts_ui.py v4 - Чеки и Финансы (фото опционально + дубли невозможны + удаление + русский CSV)
 import streamlit as st
 import os
 import hashlib
@@ -12,11 +12,13 @@ def render():
     os.makedirs(ACC_DIR, exist_ok=True)
     db.init_db()
     st.subheader("🧾 Чеки и Финансы")
-    t1, t2 = st.tabs(["📥 Новый чек", "📊 Операции и отчёты"])
+    t1, t2 = st.tabs(["📥 Новая операция", "📊 Операции и отчёты"])
 
     with t1:
-        st.markdown("#### Шаг 1. Загрузи скрин чека или перевода")
-        upl = st.file_uploader("PNG или JPG", type=["png", "jpg", "jpeg"], key="upload_receipt")
+        st.markdown("#### Шаг 1. Чек или скрин (необязательно)")
+        st.caption("Если есть чек/скрин — загрузи. Если наличка или оплата без чека — пропусти этот шаг.")
+        upl = st.file_uploader("PNG или JPG (можно пропустить)", type=["png", "jpg", "jpeg"], key="upload_receipt")
+        fpath = None
         if upl is not None:
             digest = hashlib.md5(upl.getvalue()).hexdigest()[:10]
             safe_name = upl.name.replace(" ", "_")
@@ -36,23 +38,25 @@ def render():
             amounts = office_ocr.find_amounts(text)
             if amounts:
                 st.markdown("Найдены суммы со знаком рубля: " + ", ".join([a.strip() for a in amounts[:5]]))
-            st.markdown("#### Шаг 3. Введи операцию (проверь цифры своими глазами)")
-            with st.form("add_tx"):
-                c1, c2 = st.columns(2)
-                ttype = c1.selectbox("Тип", ["расход", "доход"])
-                cat = c2.selectbox("Категория", ["материалы", "аренда", "ремонт", "обслуживание", "ярмарка", "реклама", "прочее"])
-                amount = st.number_input("Сумма (руб)", min_value=0.0, step=1.0, format="%.2f")
-                desc = st.text_input("Описание", placeholder="PETG 2 катушки Ozon")
-                sent = st.form_submit_button("💾 Записать в базу")
-                if sent:
-                    if amount <= 0:
-                        st.warning("Введи сумму больше нуля")
-                    else:
-                        tid = db.add_transaction(ttype, cat, amount, desc.strip(), fpath)
-                        st.success("Операция записана, id " + str(tid))
-                        st.rerun()
         else:
-            st.info("Загрузи скрин — офис распознает текст и подсветит суммы")
+            st.info("Чек не загружен — введи сумму и описание вручную в шаге 3")
+        st.markdown("#### Шаг 3. Введи операцию")
+        with st.form("add_tx"):
+            c1, c2 = st.columns(2)
+            ttype = c1.selectbox("Тип", ["расход", "доход"])
+            cat = c2.selectbox("Категория", ["материалы", "аренда", "ремонт", "обслуживание", "ярмарка", "реклама", "зарплата", "налоги", "прочее"])
+            amount = st.number_input("Сумма (руб)", min_value=0.0, step=1.0, format="%.2f")
+            desc = st.text_input("Описание*", placeholder="PETG 2 катушки Ozon / Наличка от клиента")
+            sent = st.form_submit_button("💾 Записать в базу")
+            if sent:
+                if amount <= 0:
+                    st.warning("Введи сумму больше нуля")
+                elif not desc.strip():
+                    st.warning("Введи описание — потом не вспомнишь на что ушли деньги")
+                else:
+                    tid = db.add_transaction(ttype, cat, amount, desc.strip(), fpath)
+                    st.success("Операция записана, id " + str(tid))
+                    st.rerun()
 
     with t2:
         st.markdown("#### Последние операции")
@@ -61,8 +65,9 @@ def render():
             st.info("Операций пока нет")
         for t in txs[:15]:
             sign = "-" if t["type"] == "расход" else "+"
+            has_photo = "📎" if t["screenshot_path"] else "—"
             c1, c2 = st.columns([6, 1])
-            c1.markdown(sign + " **" + str(t["amount"]) + " руб** | " + str(t["date"]) + " | " + str(t["category"]) + " | " + str(t["description"]))
+            c1.markdown(sign + " **" + str(t["amount"]) + " руб** | " + str(t["date"]) + " | " + str(t["category"]) + " | " + str(t["description"]) + " " + has_photo)
             if c2.button("🗑 Удалить", key="del" + str(t["id"])):
                 db.delete_transaction(t["id"])
                 st.rerun()
