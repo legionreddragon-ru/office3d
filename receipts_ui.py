@@ -1,4 +1,4 @@
-# receipts_ui.py v4 - Чеки и Финансы (фото опционально + дубли невозможны + удаление + русский CSV)
+# receipts_ui.py v7 - Чеки и Финансы (очистка загрузчика через смену ключа)
 import streamlit as st
 import os
 import hashlib
@@ -11,13 +11,24 @@ ACC_DIR = os.path.join(BASE, "accounting")
 def render():
     os.makedirs(ACC_DIR, exist_ok=True)
     db.init_db()
+    if "upload_counter" not in st.session_state:
+        st.session_state["upload_counter"] = 0
+
     st.subheader("🧾 Чеки и Финансы")
+
+    if "flash_success" in st.session_state:
+        st.success(st.session_state["flash_success"])
+        del st.session_state["flash_success"]
+    if "flash_warning" in st.session_state:
+        st.warning(st.session_state["flash_warning"])
+        del st.session_state["flash_warning"]
+
     t1, t2 = st.tabs(["📥 Новая операция", "📊 Операции и отчёты"])
 
     with t1:
         st.markdown("#### Шаг 1. Чек или скрин (необязательно)")
         st.caption("Если есть чек/скрин — загрузи. Если наличка или оплата без чека — пропусти этот шаг.")
-        upl = st.file_uploader("PNG или JPG (можно пропустить)", type=["png", "jpg", "jpeg"], key="upload_receipt")
+        upl = st.file_uploader("PNG или JPG (можно пропустить)", type=["png", "jpg", "jpeg"], key="upload_receipt_" + str(st.session_state["upload_counter"]))
         fpath = None
         if upl is not None:
             digest = hashlib.md5(upl.getvalue()).hexdigest()[:10]
@@ -27,7 +38,7 @@ def render():
             if not os.path.exists(fpath):
                 with open(fpath, "wb") as f:
                     f.write(upl.getvalue())
-                st.success("Файл сохранён: accounting/" + fname)
+                st.session_state["flash_success"] = "Файл сохранён: accounting/" + fname
             else:
                 st.info("Такой файл уже есть в accounting (не дублируем)")
             st.image(fpath, width=400)
@@ -40,6 +51,7 @@ def render():
                 st.markdown("Найдены суммы со знаком рубля: " + ", ".join([a.strip() for a in amounts[:5]]))
         else:
             st.info("Чек не загружен — введи сумму и описание вручную в шаге 3")
+
         st.markdown("#### Шаг 3. Введи операцию")
         with st.form("add_tx"):
             c1, c2 = st.columns(2)
@@ -50,13 +62,20 @@ def render():
             sent = st.form_submit_button("💾 Записать в базу")
             if sent:
                 if amount <= 0:
-                    st.warning("Введи сумму больше нуля")
+                    st.session_state["flash_warning"] = "Введи сумму больше нуля"
+                    st.rerun()
                 elif not desc.strip():
-                    st.warning("Введи описание — потом не вспомнишь на что ушли деньги")
+                    st.session_state["flash_warning"] = "Введи описание — потом не вспомнишь на что ушли деньги"
+                    st.rerun()
                 else:
                     tid = db.add_transaction(ttype, cat, amount, desc.strip(), fpath)
-                    st.success("Операция записана, id " + str(tid))
+                    st.session_state["flash_success"] = "Операция записана, id " + str(tid)
+                    st.session_state["upload_counter"] = st.session_state["upload_counter"] + 1
                     st.rerun()
+
+        if st.button("🧹 Очистить загруженный файл"):
+            st.session_state["upload_counter"] = st.session_state["upload_counter"] + 1
+            st.rerun()
 
     with t2:
         st.markdown("#### Последние операции")
@@ -70,16 +89,40 @@ def render():
             c1.markdown(sign + " **" + str(t["amount"]) + " руб** | " + str(t["date"]) + " | " + str(t["category"]) + " | " + str(t["description"]) + " " + has_photo)
             if c2.button("🗑 Удалить", key="del" + str(t["id"])):
                 db.delete_transaction(t["id"])
+                st.session_state["flash_success"] = "Операция удалена вместе со скрином"
                 st.rerun()
         if txs:
             conf = st.checkbox("Подтверждаю полную очистку всех операций")
             if st.button("🧹 Удалить ВСЕ операции"):
                 if conf:
                     db.clear_transactions()
-                    st.success("Все операции удалены")
+                    st.session_state["flash_success"] = "Все операции удалены"
                     st.rerun()
                 else:
                     st.warning("Сначала поставь галочку подтверждения")
+
+        st.markdown("#### 🧹 Очистка сиротских фото")
+        st.caption("Удаляет файлы из accounting, которые не привязаны ни к одной операции")
+        if st.button("Найти и удалить сиротские фото"):
+            conn = db.get_conn()
+            cur = conn.cursor()
+            cur.execute("SELECT screenshot_path FROM transactions WHERE screenshot_path IS NOT NULL")
+            linked = set()
+            for row in cur.fetchall():
+                linked.add(row["screenshot_path"])
+            conn.close()
+            orphans = 0
+            for fname in os.listdir(ACC_DIR):
+                fpath_check = os.path.join(ACC_DIR, fname)
+                if fpath_check not in linked:
+                    try:
+                        os.remove(fpath_check)
+                        orphans += 1
+                    except Exception:
+                        pass
+            st.session_state["flash_success"] = "Удалено сиротских фото: " + str(orphans)
+            st.rerun()
+
         st.markdown("#### 📊 Отчёт за месяц")
         months = sorted(set([t["date"][:7] for t in txs]), reverse=True)
         if months:
