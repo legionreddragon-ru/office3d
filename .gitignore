@@ -20,3 +20,4 @@ Thumbs.db
 
 # Временные файлы Streamlit
 .streamlit/secrets.toml
+office.db
