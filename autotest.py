@@ -1,8 +1,9 @@
-# autotest.py v2 - автопроверка офиса (UI тестируется через файлы-обёртки)
+# autotest.py v3 - 10 тестов (добавлены ярмарки, напоминания, makerworld_url)
 import os
 import sys
 import tempfile
 import shutil
+import datetime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 RESULTS = []
@@ -31,6 +32,7 @@ def _write_wrapper(name, module):
 
 def t_db_core():
     db.init_db()
+    db.migrate_db()
     pid = db.add_printer("T1", "Model", 0.4, "256", "PLA", 1000, 1000, "test")
     assert pid >= 1
     pl = db.add_plastic("PETG", "red", 1000, 200, "shelf", "Ozon", pid)
@@ -88,6 +90,46 @@ def t_office_logic():
     office.update_blackboard_from_text('```json {"update": {"fact": {"value": "seam 394", "source": "base"}}} ```', "financier")
     assert office.load_blackboard() != {}
 
+def t_fairs():
+    fid = db.add_fair("2026-11-01", "Autumn Fair", "Mall", 1000.0, 5000.0, "dragons", "ok")
+    assert fid >= 1
+    fairs = db.list_fairs()
+    assert any(f["id"] == fid for f in fairs)
+    f = [x for x in fairs if x["id"] == fid][0]
+    profit = (f["revenue"] or 0) - (f["cost"] or 0)
+    roi = profit / f["cost"] * 100 if f["cost"] else None
+    assert roi is not None and abs(roi - 400.0) < 0.1
+    db.delete_fair(fid)
+    assert not any(x["id"] == fid for x in db.list_fairs())
+
+def t_reminders():
+    today = datetime.date.today()
+    tomorrow = (today + datetime.timedelta(days=1)).isoformat()
+    past = (today - datetime.timedelta(days=5)).isoformat()
+    future = (today + datetime.timedelta(days=20)).isoformat()
+    r1 = db.add_reminder(tomorrow, "завтра напоминание", "test")
+    r2 = db.add_reminder(past, "прошлое", "test")
+    r3 = db.add_reminder(future, "далёкое", "test")
+    assert r1 >= 1
+    open_list = db.list_reminders("open")
+    assert any(x["id"] == r1 for x in open_list)
+    pending = db.pending_reminders(7)
+    ids_pending = [x["id"] for x in pending]
+    assert r1 in ids_pending
+    assert r2 not in ids_pending
+    assert r3 not in ids_pending
+    db.mark_reminder_done(r1)
+    assert not any(x["id"] == r1 for x in db.list_reminders("open"))
+    db.delete_reminder(r2)
+    db.delete_reminder(r3)
+
+def t_makerworld():
+    pr = db.add_product("TestModel", 1, "PETG", 50, 100.0, 200.0, "test", None)
+    db.update_product_makerworld(pr, "https://makerworld.com/ru/models/12345")
+    products = db.list_products()
+    p = [x for x in products if x["id"] == pr][0]
+    assert p["makerworld_url"] == "https://makerworld.com/ru/models/12345"
+
 def t_ui_smoke():
     from streamlit.testing.v1 import AppTest
     import receipts_ui
@@ -99,6 +141,9 @@ def t_ui_smoke():
     at2 = AppTest.from_file(_write_wrapper("ui_warehouse.py", "warehouse_ui"), default_timeout=60)
     at2.run()
     assert not at2.exception, str(at2.exception)
+    at3 = AppTest.from_file(_write_wrapper("ui_fairs.py", "fairs_ui"), default_timeout=60)
+    at3.run()
+    assert not at3.exception, str(at3.exception)
 
 def t_ui_orphans():
     from streamlit.testing.v1 import AppTest
@@ -129,7 +174,10 @@ def main():
     check("DB: inventarizaciya", t_inventory)
     check("OCR: raspoznavanie i summy", t_ocr)
     check("Logika: detector i zamki Doski", t_office_logic)
-    check("UI: rendery bez oshibok", t_ui_smoke)
+    check("Yarmarki + ROI", t_fairs)
+    check("Napominaniya CRUD + pending", t_reminders)
+    check("Makerworld URL v izdelii", t_makerworld)
+    check("UI: vse tri vkladki", t_ui_smoke)
     check("UI: uborka sirotskih foto", t_ui_orphans)
     bad = [r for r in RESULTS if not r[1]]
     print("=== ITOG: %d/%d OK ===" % (len(RESULTS) - len(bad), len(RESULTS)))

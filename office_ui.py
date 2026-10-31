@@ -2,8 +2,21 @@
 import streamlit as st
 import os, glob, datetime, time, json
 import office
+
+try:
+    import office_db as _db
+    _db.init_db()
+    _db.migrate_db()
+    _pending = _db.pending_reminders(7)
+    if _pending:
+        import streamlit as _st
+        for _r in _pending:
+            _st.warning("🔔 Напоминание на " + str(_r["date"]) + ": " + str(_r["text"]))
+except Exception as _e:
+    pass
 import warehouse_ui
 import receipts_ui
+import fairs_ui
 
 st.set_page_config(page_title="ОФИС-3D", page_icon="🏢", layout="wide")
 
@@ -138,7 +151,7 @@ m1.metric("📚 Отчётов", len(reports))
 m2.metric("✅ Задач в журнале", len(journal_lines()))
 m3.metric("👥 Сотрудников", len([r for r in ROLES if r != "critic"]))
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🧭 Через Павла", "📝 Прямая задача", "👥 Команда", "📚 Отчёты", "🧠 База", "🏭 Склад и Принтеры", "🧾 Чеки и Финансы"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🧭 Через Павла", "📝 Прямая задача", "👥 Команда", "📚 Отчёты", "🧠 База", "🏭 Склад и Принтеры", "🧾 Чеки и Финансы", "🎪 Ярмарки"])
 
 PRESETS = [
     ("🧮 Пересчёт цен", "financier", "Пересчитай цены Медвежонка/Машинки/Ракеты по формуле v2 из базы знаний. Таблица: себестоимость, маржа, полки цен ярмарка/онлайн. Итоговые цены запиши на Доску с источником 'база'."),
@@ -244,3 +257,6 @@ with tab6:
 
 with tab7:
     receipts_ui.render()
+
+with tab8:
+    fairs_ui.render()

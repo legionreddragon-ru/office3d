@@ -287,3 +287,130 @@ def clear_transactions():
     conn.commit()
     conn.close()
     return True
+
+def migrate_db():
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("PRAGMA table_info(finished_products)")
+        cols = [row[1] for row in cur.fetchall()]
+        if "makerworld_url" not in cols:
+            cur.execute("ALTER TABLE finished_products ADD COLUMN makerworld_url TEXT")
+    except Exception:
+        pass
+    cur.execute("""CREATE TABLE IF NOT EXISTS reminders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        text TEXT NOT NULL,
+        category TEXT,
+        status TEXT DEFAULT 'open',
+        created_at TEXT
+    )""")
+    conn.commit()
+    conn.close()
+    return True
+
+def add_fair(date, name, location, cost, revenue, items_sold, notes):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO fairs (date, name, location, cost, revenue, items_sold, notes, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (date, name, location, cost, revenue, items_sold, notes, now_str()))
+    conn.commit()
+    fid = cur.lastrowid
+    conn.close()
+    return fid
+
+def list_fairs():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM fairs ORDER BY date DESC")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def delete_fair(fair_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM fairs WHERE id=?", (fair_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+def add_reminder(date, text, category):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO reminders (date, text, category, status, created_at) VALUES (?,?,?,?,?)",
+        (date, text, category, "open", now_str()))
+    conn.commit()
+    rid = cur.lastrowid
+    conn.close()
+    return rid
+
+def list_reminders(status=None):
+    conn = get_conn()
+    cur = conn.cursor()
+    if status:
+        cur.execute("SELECT * FROM reminders WHERE status=? ORDER BY date ASC", (status,))
+    else:
+        cur.execute("SELECT * FROM reminders ORDER BY date ASC")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+def mark_reminder_done(reminder_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE reminders SET status='done' WHERE id=?", (reminder_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+def delete_reminder(reminder_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM reminders WHERE id=?", (reminder_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+def pending_reminders(days_ahead=7):
+    import datetime
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM reminders WHERE status='open' ORDER BY date ASC")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    today = datetime.date.today()
+    cutoff = today + datetime.timedelta(days=days_ahead)
+    out = []
+    for r in rows:
+        try:
+            d = datetime.datetime.strptime(r["date"], "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if d <= cutoff and d >= today - datetime.timedelta(days=1):
+            out.append(r)
+    return out
+
+def update_product_makerworld(product_id, url):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE finished_products SET makerworld_url=? WHERE id=?", (url, product_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def delete_fair(fair_id):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM fairs WHERE id=?", (fair_id,))
+    row = cur.fetchone()
+    if row is not None and row["name"]:
+        pattern = "%ярмарк_ '" + row["name"] + "'%"
+        cur.execute("DELETE FROM reminders WHERE text LIKE ?", (pattern,))
+    cur.execute("DELETE FROM fairs WHERE id=?", (fair_id,))
+    conn.commit()
+    conn.close()
+    return True

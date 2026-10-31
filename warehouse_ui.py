@@ -1,9 +1,10 @@
-# warehouse_ui.py - вкладка Склад и Принтеры
+# warehouse_ui.py v8 - Склад и Принтеры + поле Makerworld
 import streamlit as st
 import office_db as db
 
 def render():
     db.init_db()
+    db.migrate_db()
     st.subheader("🏭 Склад и Принтеры")
     t1, t2, t3 = st.tabs(["🖨 Принтеры", "🧵 Пластик", "📦 Изделия и инвентаризация"])
 
@@ -79,7 +80,7 @@ def render():
         for r in rows:
             icon = "⚠️" if r["weight_grams"] <= r["min_weight"] else "✅"
             st.markdown(icon + " **" + str(r["material"]) + " " + str(r["color"]) + ":** " + str(r["weight_grams"]) + " г (порог " + str(r["min_weight"]) + ") — " + str(r["location"]))
-        st.markdown("#### ✂️ Списать пластик (пробник / печать / брак)")
+        st.markdown("#### ✂️ Списать пластик")
         rows2 = db.list_plastic()
         if rows2:
             with st.form("use_plastic"):
@@ -115,14 +116,30 @@ def render():
             pcost = c5.number_input("Себестоимость (руб)", value=394.0, step=1.0)
             pprice = c6.number_input("Цена (руб)", value=550.0, step=10.0)
             ploc = st.text_input("Где", placeholder="витрина")
+            murl = st.text_input("Ссылка на модель (Makerworld, опционально)", placeholder="https://makerworld.com/ru/models/...")
             sent = st.form_submit_button("➕ Добавить изделие")
             if sent:
                 if not pname.strip():
                     st.warning("Введи название")
                 else:
-                    db.add_product(pname.strip(), int(qty), pmat.strip(), int(pweight), pcost, pprice, ploc.strip(), None)
+                    pid = db.add_product(pname.strip(), int(qty), pmat.strip(), int(pweight), pcost, pprice, ploc.strip(), None)
+                    if murl.strip():
+                        db.update_product_makerworld(pid, murl.strip())
                     st.success("Изделие добавлено")
                     st.rerun()
+        st.markdown("#### 📦 Список изделий")
+        products = db.list_products()
+        if products:
+            for pr in products:
+                with st.container(border=True):
+                    murl = pr.get("makerworld_url") or ""
+                    link = " — [модель](" + murl + ")" if murl else ""
+                    st.markdown("**" + str(pr["name"]) + "** × " + str(pr["quantity"]) + " | " + str(pr["material"]) + " " + str(pr["weight_grams"]) + "г | себ " + str(pr["cost"]) + "₽ / цена " + str(pr["price"]) + "₽" + link)
+                    new_url = st.text_input("Изменить ссылку Makerworld", value=murl, key="mw" + str(pr["id"]))
+                    if st.button("💾 Сохранить ссылку", key="mwb" + str(pr["id"])):
+                        db.update_product_makerworld(pr["id"], new_url.strip())
+                        st.success("Ссылка обновлена")
+                        st.rerun()
         if st.button("📦 Показать инвентаризацию"):
             rep = db.inventory_report()
             st.markdown("##### Пластик")
