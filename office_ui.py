@@ -17,6 +17,7 @@ except Exception as _e:
 import warehouse_ui
 import receipts_ui
 import fairs_ui
+import health_ui
 
 st.set_page_config(page_title="ОФИС-3D", page_icon="🏢", layout="wide")
 
@@ -151,7 +152,7 @@ m1.metric("📚 Отчётов", len(reports))
 m2.metric("✅ Задач в журнале", len(journal_lines()))
 m3.metric("👥 Сотрудников", len([r for r in ROLES if r != "critic"]))
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🧭 Через Павла", "📝 Прямая задача", "👥 Команда", "📚 Отчёты", "🧠 База", "🏭 Склад и Принтеры", "🧾 Чеки и Финансы", "🎪 Ярмарки"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🧭 Через Павла", "📝 Прямая задача", "👥 Команда", "📚 Отчёты", "🧠 База", "🏭 Склад и Принтеры", "🧾 Чеки и Финансы", "🎪 Ярмарки", "🩺 Диагностика"])
 
 PRESETS = [
     ("🧮 Пересчёт цен", "financier", "Пересчитай цены Медвежонка/Машинки/Ракеты по формуле v2 из базы знаний. Таблица: себестоимость, маржа, полки цен ярмарка/онлайн. Итоговые цены запиши на Доску с источником 'база'."),
@@ -260,3 +261,6 @@ with tab7:
 
 with tab8:
     fairs_ui.render()
+
+with tab9:
+    health_ui.render()
