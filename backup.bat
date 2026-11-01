@@ -1,11 +1,17 @@
 @echo off
-echo === СОЗДАНИЕ АРХИВА ОФИСА ===
+chcp 65001 >nul
+echo === BACKUP OFFICE 3D ===
 echo.
-cd /d "%~dp0"
-echo Создаю архив office3d_backup_%date:~-4%%date:~3,2%%date:~0,2%.zip...
-powershell -command "Compress-Archive -Path 'office.py', 'office_ui.py', 'test_office.py', 'config.json', 'knowledge', 'blackboard.json', 'requirements.txt', '.gitignore', '.streamlit' -DestinationPath 'office3d_backup_%date:~-4%%date:~3,2%%date:~0,2%.zip' -Force"
-echo.
-echo Архив создан: office3d_backup_*.zip
-echo Скопируйте его на флешку и храните в безопасном месте (внутри есть файл с паролем).
-echo.
+set BACKUP_DIR=C:\office3d\backups
+set STAMP=%date:~6,4%-%date:~3,2%-%date:~0,2%_%time:~0,2%-%time:~3,2%
+set STAMP=%STAMP: =0%
+set BACKUP_NAME=office3d_%STAMP%.zip
+if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
+echo Создаю резервную копию: %BACKUP_NAME%
+powershell -Command "Get-ChildItem 'C:\office3d' -Exclude 'venv','.git','__pycache__','backups' | Compress-Archive -DestinationPath '%BACKUP_DIR%\%BACKUP_NAME%' -Force"
+if exist "%BACKUP_DIR%\%BACKUP_NAME%" (
+    echo ✅ Бэкап создан: %BACKUP_DIR%\%BACKUP_NAME%
+) else (
+    echo ❌ ОШИБКА: бэкап НЕ создан, пришли мне этот экран
+)
 pause

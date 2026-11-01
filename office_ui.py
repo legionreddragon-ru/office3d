@@ -19,7 +19,14 @@ import receipts_ui
 import fairs_ui
 import health_ui
 
-st.set_page_config(page_title="ОФИС-3D", page_icon="🏢", layout="wide")
+# ========== НОВАЯ ИКОНКА ==========
+# Путь к нашей картинке в папке assets
+_ICON_PATH = os.path.join(office.BASE, "assets", "icon.png")
+# Если картинку не нашли - используем стандартный эмодзи
+_ICON = _ICON_PATH if os.path.exists(_ICON_PATH) else "🏭"
+
+st.set_page_config(page_title="ОФИС-3D", page_icon=_ICON, layout="wide")
+# ==================================
 
 def check_password():
     def password_entered():
@@ -45,7 +52,7 @@ def rerun():
     except AttributeError:
         st.experimental_rerun()
 
-st.title("🏢 ОФИС-3D — панель управления виртуальным офисом")
+st.title("ОФИС-3D — панель управления виртуальным офисом")
 
 ROLES = office.ROLES
 TIMINGS = os.path.join(office.BASE, "logs", "timings.jsonl")
@@ -110,6 +117,13 @@ def get_reports():
 reports = get_reports()
 
 with st.sidebar:
+    # ========== ЛОГОТИП В САЙДБАРЕ ==========
+    if os.path.exists(_ICON_PATH):
+        st.image(_ICON_PATH, width=140)
+        st.caption("Иконка: Dewi Sari / Flaticon (free license)")
+        st.markdown("---")
+    # =======================================
+    
     st.header("⚙️ Состояние")
     try:
         import requests as _rq

@@ -1,20 +1,24 @@
 @echo off
-echo === РАЗВЁРТЫВАНИЕ ОФИСА НА НОВОМ ПК ===
+chcp 65001 >nul
+echo === RESTORE OFFICE 3D ===
 echo.
-echo УБЕДИТЕСЬ, ЧТО НА НОВОМ ПК УСТАНОВЛЕНЫ:
-echo   1. Python 3.11+ (python.org/downloads)
-echo   2. Ollama (ollama.com/download)
-echo   3. Модели: ollama pull qwen2.5:7b, ollama pull phi3:mini
+set BACKUP_DIR=C:\office3d\backups
+echo Последние бэкапы:
+dir /b "%BACKUP_DIR%\office3d_*.zip" 2>nul
 echo.
-echo Распакуйте архив office3d_backup_*.zip в любую папку, например C:\office3d
-echo.
-echo Устанавливаю зависимости...
-cd /d "%~dp0"
-python -m venv venv
-venv\Scripts\pip.exe install -r requirements.txt
-echo.
-echo Запускаю офис...
-start "" "%~dp0ОФИС_VENV.bat"
-echo.
-echo Офис запущен! Откройте браузер: http://localhost:8501
+set /p FILENAME="Имя файла бэкапа: "
+if not exist "%BACKUP_DIR%\%FILENAME%" (
+    echo ❌ Не найден: %BACKUP_DIR%\%FILENAME%
+    pause
+    exit /b
+)
+echo ВНИМАНИЕ! Текущие файлы будут перезаписаны!
+set /p CONFIRM="Продолжить? (Y/N): "
+if /i not "%CONFIRM%"=="Y" (
+    echo Отменено.
+    pause
+    exit /b
+)
+powershell -Command "Expand-Archive -Path '%BACKUP_DIR%\%FILENAME%' -DestinationPath 'C:\office3d' -Force"
+echo ✅ Восстановление завершено
 pause
