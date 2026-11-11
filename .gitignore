@@ -21,3 +21,5 @@ Thumbs.db
 # Временные файлы Streamlit
 .streamlit/secrets.toml
 office.db
+backups/
+night_log.txt
