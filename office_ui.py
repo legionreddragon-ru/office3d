@@ -25,6 +25,21 @@ _ICON_PATH = os.path.join(office.BASE, "assets", "icon.png")
 # Если картинку не нашли - используем стандартный эмодзи
 _ICON = _ICON_PATH if os.path.exists(_ICON_PATH) else "🏭"
 
+
+# " + MARKER_CSS + "
+st.markdown("""
+<style>
+#MainMenu, [data-testid="stMainMenu"],
+[data-testid="stHeader"] [data-testid="stHeaderToolbar"],
+header[data-testid="stHeader"] div[role="button"],
+.stAppDeployButton, [data-testid="stAppDeployButton"],
+[data-testid="stAppFooter"], footer {
+    visibility: hidden;
+    height: 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.set_page_config(page_title="ОФИС-3D", page_icon=_ICON, layout="wide")
 # ==================================
 
@@ -117,6 +132,21 @@ def get_reports():
 reports = get_reports()
 
 with st.sidebar:
+    " + MARKER_BTN + "
+    st.markdown("#### 🛠 Инструменты")
+    _c1, _c2 = st.columns(2)
+    if _c1.button("🔄 Обновить", use_container_width=True, key="btn_ru_rerun"):
+        st.rerun()
+    if _c2.button("🧹 Кэш", use_container_width=True, key="btn_ru_cache"):
+        st.cache_data.clear()
+        try:
+            st.cache_resource.clear()
+        except Exception:
+            pass
+        st.success("Кэш очищен")
+    st.caption("Печать страницы: Ctrl+P")
+    st.divider()
+
     # ========== ЛОГОТИП В САЙДБАРЕ ==========
     if os.path.exists(_ICON_PATH):
         st.image(_ICON_PATH, width=140)
