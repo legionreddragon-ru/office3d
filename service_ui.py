@@ -2,11 +2,14 @@
 import streamlit as st
 import os
 import datetime
+import zipfile
 import checkall
 import office_db as db
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 FLASH_KEY = "flash_service"
+BACKUP_DIR = os.path.join(BASE, "backups")
+EXCLUDE = {"venv", ".git", "__pycache__", "backups"}
 
 def render():
     db.init_db()
@@ -15,6 +18,8 @@ def render():
     if FLASH_KEY in st.session_state:
         msg = st.session_state.pop(FLASH_KEY)
         st.success(msg)
+    
+    # === БЛОК 1: ЛЕЧЕНИЕ ===
     st.markdown("### 🩺 Блок 1: Лечение")
     st.caption("Запускает диагностику 21 пункт, лечит типичные косяки, отчитывается.")
     if st.button("🔍 Провести диагностику и лечение", key="btn_heal"):
@@ -72,4 +77,63 @@ def render():
     if "service_report" in st.session_state:
         st.markdown("\n".join(st.session_state["service_report"]))
     st.divider()
-    st.caption("Следующие блоки появятся позже: Бэкапы • Доктор CSV • Ревью кода • Пакет для ремонта")
+    
+    # === БЛОК 2: БЭКАПЫ ===
+    st.markdown("### 💾 Блок 2: Бэкапы")
+    st.caption("Создаёт копию офиса только если диагностика прошла успешно.")
+    if st.button("💾 Сделать бэкап сейчас", key="btn_backup"):
+        checks = []
+        for fn in [
+            checkall.c_autotest,
+            checkall.c_syntax,
+            checkall.c_db_integrity,
+            checkall.c_env,
+        ]:
+            try:
+                status, msg = fn()
+            except Exception:
+                status = "FAIL"
+            checks.append(status)
+        if "FAIL" in checks:
+            st.session_state[FLASH_KEY] = "❌ Диагностика не пройдена, бэкап отменён. Сначала запусти Лечение."
+        else:
+            stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+            backup_name = "office3d_" + stamp + ".zip"
+            backup_path = os.path.join(BACKUP_DIR, backup_name)
+            if not os.path.exists(BACKUP_DIR):
+                os.makedirs(BACKUP_DIR, exist_ok=True)
+            try:
+                with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for root, dirs, files in os.walk(BASE):
+                        dirs[:] = [d for d in dirs if d not in EXCLUDE]
+                        for f in files:
+                            fp = os.path.join(root, f)
+                            arcname = os.path.relpath(fp, BASE)
+                            zf.write(fp, arcname)
+                st.session_state[FLASH_KEY] = "✅ Бэкап создан: " + backup_name
+            except Exception as e:
+                st.session_state[FLASH_KEY] = "❌ Ошибка создания бэкапа: " + str(e)[:100]
+        st.rerun()
+    
+    if os.path.isdir(BACKUP_DIR):
+        backups = []
+        for f in os.listdir(BACKUP_DIR):
+            if f.startswith("office3d_") and f.endswith(".zip"):
+                fp = os.path.join(BACKUP_DIR, f)
+                sz_kb = os.path.getsize(fp) / 1024
+                mtime = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                backups.append((f, sz_kb, mtime))
+        backups.sort(key=lambda x: x[2], reverse=True)
+        if backups:
+            st.markdown("#### Последние бэкапы:")
+            for name, sz, mt in backups[:5]:
+                st.text(f"  {name}  ({int(sz)} КБ, {mt.strftime('%d.%m %H:%M')})")
+    
+    if st.button("📂 Открыть папку бэкапов", key="btn_open_backups"):
+        if os.path.isdir(BACKUP_DIR):
+            os.startfile(BACKUP_DIR)
+        else:
+            st.warning("Папка бэкапов не существует")
+    
+    st.divider()
+    st.caption("Следующие блоки: Доктор CSV • Ревью кода • Пакет для ремонта")
